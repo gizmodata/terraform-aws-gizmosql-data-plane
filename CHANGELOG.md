@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.2.0] - 2026-10-07
+
 ### Fixed
 - **Node volumes are encrypted with the tenant's KMS key.** The EC2NodeClass set `kmsKeyId`, but
   the Karpenter v1 field is `kmsKeyID`, so the API server pruned it and the root volume used the
