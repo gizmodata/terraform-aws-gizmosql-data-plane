@@ -3,4 +3,4 @@ name: karpenter-node-config
 description: Per-tenant Karpenter EC2NodeClass and NodePool for GizmoSQL workloads
 # Bump on every template change: Terraform's helm_release only re-renders a local chart
 # when this version (or the values) change.
-version: 0.2.0
+version: 0.3.0

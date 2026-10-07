@@ -19,3 +19,5 @@ sharedCompute:
   instanceTypes: [r8gd.xlarge, r8gd.2xlarge]
   cpuLimit: "256"
   memoryLimit: 2048Gi
+osVolumeSize: 4Gi
+dataVolumeSize: 100Gi

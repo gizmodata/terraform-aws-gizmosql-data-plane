@@ -19,3 +19,5 @@ tenants:
     cpuLimit: "256"
     memoryLimit: 2048Gi
 sharedCompute: null
+osVolumeSize: 4Gi
+dataVolumeSize: 100Gi

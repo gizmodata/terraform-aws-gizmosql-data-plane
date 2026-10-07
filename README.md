@@ -21,10 +21,12 @@ One shared tenant gives every workload a place to run. A tenant per customer iso
 
 ```hcl
 module "gizmosql_node_pools" {
-  source = "git::https://github.com/gizmodata/terraform-aws-gizmosql-data-plane.git//modules/node-pools?ref=v0.1.0"
+  source = "git::https://github.com/gizmodata/terraform-aws-gizmosql-data-plane.git//modules/node-pools?ref=v0.2.0"
 
   cluster_name           = module.eks.cluster_name
   node_role_name         = module.karpenter.node_iam_role_name
+  # Lets the controller use the tenant keys for the nodes' encrypted volumes.
+  karpenter_controller_role_name = module.karpenter.iam_role_name
   node_security_group_id = module.eks.node_security_group_id
   subnet_ids             = module.vpc.private_subnets
   ami_alias              = "bottlerocket@v1.64.0"
@@ -53,6 +55,12 @@ module "gizmosql_node_pools" {
   depends_on = [helm_release.karpenter]
 }
 ```
+
+Both Bottlerocket volumes (the OS volume `/dev/xvda`, `os_volume_size`, and the data volume
+`/dev/xvdb`, `data_volume_size`) are encrypted with the tenant's KMS key. The module gives the
+Karpenter controller role (`karpenter_controller_role_name`) an inline policy to use those keys,
+which it needs to launch the nodes; the keys' policies must delegate to IAM (the usual
+account-root statement).
 
 The pools are rendered by a small local Helm chart (no `kubernetes_manifest`, so a plan never
 needs the cluster's API or Karpenter's CRDs), so the calling stack needs a configured `helm`

@@ -14,6 +14,8 @@ resource "helm_release" "this" {
       tags                = var.tags
       amiAlias            = var.ami_alias
       userData            = var.user_data
+      osVolumeSize        = var.os_volume_size
+      dataVolumeSize      = var.data_volume_size
       tenants = {
         for key, cfg in var.tenants : key => {
           instanceTypes = cfg.instance_types
@@ -31,4 +33,48 @@ resource "helm_release" "this" {
       }
     })
   ]
+
+  # The node classes ask for the tenant keys; until the controller may use them, every launch fails.
+  depends_on = [time_sleep.karpenter_tenant_kms_propagation]
+}
+
+# IAM changes take a few seconds to reach every region endpoint.
+resource "time_sleep" "karpenter_tenant_kms_propagation" {
+  create_duration = "30s"
+  triggers = {
+    policy = aws_iam_role_policy.karpenter_tenant_kms.policy
+  }
+}
+
+# Karpenter launches the nodes (EC2 CreateFleet) with its controller role, so that role must be
+# able to use each tenant's key for the encrypted volumes; without it every launch fails. The
+# keys' policies are expected to delegate to IAM (the usual account-root statement).
+data "aws_iam_policy_document" "karpenter_tenant_kms" {
+  statement {
+    sid = "UseTenantKeysForNodeVolumes"
+    actions = [
+      "kms:Encrypt",
+      "kms:Decrypt",
+      "kms:ReEncrypt*",
+      "kms:GenerateDataKey*",
+      "kms:DescribeKey",
+    ]
+    resources = distinct([for cfg in values(var.tenants) : cfg.kms_key_arn])
+  }
+  statement {
+    sid       = "GrantTenantKeysToEC2"
+    actions   = ["kms:CreateGrant"]
+    resources = distinct([for cfg in values(var.tenants) : cfg.kms_key_arn])
+    condition {
+      test     = "Bool"
+      variable = "kms:GrantIsForAWSResource"
+      values   = ["true"]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "karpenter_tenant_kms" {
+  name   = "${var.release_name}-tenant-kms"
+  role   = var.karpenter_controller_role_name
+  policy = data.aws_iam_policy_document.karpenter_tenant_kms.json
 }
