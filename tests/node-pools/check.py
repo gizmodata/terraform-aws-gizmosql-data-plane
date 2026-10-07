@@ -50,5 +50,18 @@ for name, pool in pools.items():
     assert {"key": "gizmodata.com/tenant", "value": tenant, "effect": "NoSchedule"} in pool["template"]["spec"]["taints"]
     assert pool["template"]["spec"]["startupTaints"] == [{"key": "ebs.csi.aws.com/agent-not-ready", "effect": "NoExecute"}]
 
+# Both Bottlerocket volumes are listed (listing any replaces Karpenter's defaults) and both are
+# encrypted with the tenant's key, under the CRD's field name `kmsKeyID`.
+for values in ("by-id-shared-compute.yaml", "by-tag-on-demand.yaml"):
+    config = yaml.safe_load(open(here / values))
+    for name, spec in by(render(here / values), "EC2NodeClass").items():
+        key = config["tenants"][name.removeprefix("gizmosql-")]["kmsKeyArn"]
+        volumes = {m["deviceName"]: m["ebs"] for m in spec["blockDeviceMappings"]}
+        assert set(volumes) == {"/dev/xvda", "/dev/xvdb"}, volumes
+        for device, ebs in volumes.items():
+            assert ebs["encrypted"] is True and ebs["kmsKeyID"] == key, (name, device, ebs)
+            assert "kmsKeyId" not in ebs, "kmsKeyId is pruned by the API server; the field is kmsKeyID"
+        assert volumes["/dev/xvda"]["volumeSize"] == "4Gi" and volumes["/dev/xvdb"]["volumeSize"] == "100Gi"
+
 print("node-pools chart checks passed")
 sys.exit(0)

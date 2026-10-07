@@ -8,9 +8,31 @@ variable "node_role_name" {
   type        = string
 }
 
-variable "ami_alias" {
-  description = "EC2NodeClass AMI alias, e.g. `bottlerocket@v1.64.0`."
+variable "karpenter_controller_role_name" {
+  description = "IAM role name of the Karpenter controller. The module lets it use the tenants' KMS keys, which it needs to launch nodes with encrypted volumes."
   type        = string
+}
+
+variable "ami_alias" {
+  description = "EC2NodeClass AMI alias, e.g. `bottlerocket@v1.64.0`. Bottlerocket only: the volume layout is Bottlerocket's (OS on /dev/xvda, data on /dev/xvdb)."
+  type        = string
+
+  validation {
+    condition     = startswith(var.ami_alias, "bottlerocket@")
+    error_message = "ami_alias must be a Bottlerocket alias (bottlerocket@<version>)."
+  }
+}
+
+variable "os_volume_size" {
+  description = "Size of the Bottlerocket OS volume (/dev/xvda)."
+  type        = string
+  default     = "4Gi"
+}
+
+variable "data_volume_size" {
+  description = "Size of the Bottlerocket data volume (/dev/xvdb): container images, logs, host containers. Pod ephemeral storage is on the instance store."
+  type        = string
+  default     = "100Gi"
 }
 
 variable "user_data" {

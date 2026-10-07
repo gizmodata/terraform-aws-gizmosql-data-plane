@@ -3,6 +3,10 @@ terraform {
 
   required_providers {
     # `values` is a list on both the 2.x and 3.x providers, so either works.
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
     helm = {
       source  = "hashicorp/helm"
       version = ">= 2.17"

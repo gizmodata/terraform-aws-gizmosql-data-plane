@@ -34,16 +34,27 @@ spec:
     - tags:
         karpenter.sh/discovery: {{ $.Values.clusterName }}
     {{- end }}
+  # Bottlerocket's two volumes, both encrypted with the tenant's key: /dev/xvda is the OS
+  # (a few GiB is plenty) and /dev/xvdb is the data volume (images, logs, host containers;
+  # pod ephemeral storage is on the RAID0 instance store). Listing blockDeviceMappings
+  # replaces Karpenter's Bottlerocket defaults, so both must be here: before 0.2.0 only
+  # /dev/xvda was, and /dev/xvdb came from the AMI snapshot unencrypted. The field is
+  # `kmsKeyID` (the 0.1.x `kmsKeyId` was pruned by the API server).
   blockDeviceMappings:
     - deviceName: /dev/xvda
       ebs:
-        volumeSize: 100Gi
+        volumeSize: {{ required "osVolumeSize is required" $.Values.osVolumeSize }}
         volumeType: gp3
         encrypted: true
-        # KNOWN ISSUE (0.1.x): the CRD field is `kmsKeyID`, so the API server prunes this and the
-        # volume uses the account's default EBS key. Kept as-is so 0.1.0 renders exactly what the
-        # stacks it replaces render; fixed in 0.2.0.
-        kmsKeyId: {{ $cfg.kmsKeyArn }}
+        kmsKeyID: {{ required "kmsKeyArn is required" $cfg.kmsKeyArn }}
+        deleteOnTermination: true
+    - deviceName: /dev/xvdb
+      ebs:
+        volumeSize: {{ required "dataVolumeSize is required" $.Values.dataVolumeSize }}
+        volumeType: gp3
+        encrypted: true
+        kmsKeyID: {{ $cfg.kmsKeyArn }}
+        deleteOnTermination: true
   tags:
     {{- range $k, $v := $.Values.tags }}
     {{ $k }}: {{ $v | quote }}
