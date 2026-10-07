@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+      - uses: azure/setup-helm@v5
+      - name: terraform fmt
+        run: terraform fmt -check -recursive
+      - name: terraform validate
+        working-directory: modules/node-pools
+        run: terraform init -backend=false -input=false && terraform validate
+      - name: helm lint
+        run: |
+          for values in tests/node-pools/*.yaml; do
+            helm lint modules/node-pools/chart -f "$values"
+          done
+      - name: chart render checks
+        run: pip install pyyaml && python tests/node-pools/check.py
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Extract this version's CHANGELOG section
+        run: |
+          awk -v tag="${GITHUB_REF_NAME}" '
+            $0 ~ "^## \\[" tag "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          test -s release-notes.md || { echo "No CHANGELOG.md section for ${GITHUB_REF_NAME}"; exit 1; }
+      - uses: softprops/action-gh-release@v3
+        with:
+          body_path: release-notes.md

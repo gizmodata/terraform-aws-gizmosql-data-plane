@@ -1,0 +1,53 @@
+{{- range $tenant, $cfg := .Values.tenants }}
+---
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: gizmosql-{{ $tenant }}
+spec:
+  amiSelectorTerms:
+    - alias: {{ required "amiAlias is required" $.Values.amiAlias }}
+  role: {{ required "nodeRoleName is required" $.Values.nodeRoleName }}
+  instanceStorePolicy: RAID0
+  {{- if $.Values.userData }}
+  userData: |-
+{{ $.Values.userData | indent 4 }}
+  {{- end }}
+  subnetSelectorTerms:
+    {{- if $.Values.subnetIds }}
+    {{- range $.Values.subnetIds }}
+    - id: {{ . }}
+    {{- end }}
+    {{- else }}
+    - tags:
+        karpenter.sh/discovery: {{ $.Values.clusterName }}
+    {{- end }}
+  # Prefer the node security group BY ID: a node SG orphaned by an earlier cluster build
+  # can keep the discovery tag, so every Karpenter node gets two cluster-tagged SGs and the
+  # AWS load balancer controller refuses to reconcile NLB target groups ("expected exactly
+  # one securityGroup tagged with kubernetes.io/cluster/…"). Selecting by tag is only for
+  # clusters whose node SGs this stack doesn't own.
+  securityGroupSelectorTerms:
+    {{- if $.Values.nodeSecurityGroupId }}
+    - id: {{ $.Values.nodeSecurityGroupId }}
+    {{- else }}
+    - tags:
+        karpenter.sh/discovery: {{ $.Values.clusterName }}
+    {{- end }}
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 100Gi
+        volumeType: gp3
+        encrypted: true
+        # KNOWN ISSUE (0.1.x): the CRD field is `kmsKeyID`, so the API server prunes this and the
+        # volume uses the account's default EBS key. Kept as-is so 0.1.0 renders exactly what the
+        # stacks it replaces render; fixed in 0.2.0.
+        kmsKeyId: {{ $cfg.kmsKeyArn }}
+  tags:
+    {{- range $k, $v := $.Values.tags }}
+    {{ $k }}: {{ $v | quote }}
+    {{- end }}
+    karpenter.sh/discovery: {{ $.Values.clusterName }}
+    tenant: {{ $tenant }}
+{{- end }}

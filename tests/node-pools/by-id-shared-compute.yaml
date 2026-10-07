@@ -1,0 +1,21 @@
+clusterName: example-eks
+nodeRoleName: KarpenterNode-example-eks
+nodeSecurityGroupId: sg-0123456789abcdef0
+subnetIds: [subnet-0aaaaaaaaaaaaaaa1, subnet-0bbbbbbbbbbbbbbb2]
+amiAlias: bottlerocket@v1.64.0
+userData: |
+  [settings.kubernetes]
+  max-pods = 110
+tags: {environment: example}
+tenants:
+  shared:
+    instanceTypes: [r8gd.large, r8gd.xlarge]
+    kmsKeyArn: arn:aws:kms:us-east-2:000000000000:key/00000000-0000-0000-0000-000000000000
+    capacityTypes: [on-demand, spot]
+    cpuLimit: "2048"
+    memoryLimit: 16384Gi
+sharedCompute:
+  tenant: shared
+  instanceTypes: [r8gd.xlarge, r8gd.2xlarge]
+  cpuLimit: "256"
+  memoryLimit: 2048Gi

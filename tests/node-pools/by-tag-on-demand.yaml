@@ -1,0 +1,21 @@
+clusterName: example-eks
+nodeRoleName: KarpenterNode-example-eks
+nodeSecurityGroupId: null
+subnetIds: []
+amiAlias: bottlerocket@v1.64.0
+userData: ""
+tags: {}
+tenants:
+  team-a:
+    instanceTypes: [r8gd.large]
+    kmsKeyArn: arn:aws:kms:us-east-2:000000000000:key/00000000-0000-0000-0000-000000000001
+    capacityTypes: [on-demand]
+    cpuLimit: "64"
+    memoryLimit: 512Gi
+  team-b:
+    instanceTypes: [r8gd.xlarge, r8gd.2xlarge]
+    kmsKeyArn: arn:aws:kms:us-east-2:000000000000:key/00000000-0000-0000-0000-000000000002
+    capacityTypes: [on-demand, spot]
+    cpuLimit: "256"
+    memoryLimit: 2048Gi
+sharedCompute: null

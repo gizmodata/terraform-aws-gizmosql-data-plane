@@ -1,0 +1,109 @@
+{{- range $tenant, $cfg := .Values.tenants }}
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: gizmosql-{{ $tenant }}
+spec:
+  template:
+    metadata:
+      labels:
+        gizmodata.com/workload: gizmosql
+        gizmodata.com/tenant: {{ $tenant }}
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: gizmosql-{{ $tenant }}
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values:
+            - arm64
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values:
+            {{- range $cfg.capacityTypes }}
+            - {{ . }}
+            {{- end }}
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+            {{- range $cfg.instanceTypes }}
+            - {{ . }}
+            {{- end }}
+      taints:
+        - key: gizmodata.com/tenant
+          value: {{ $tenant }}
+          effect: NoSchedule
+      # Fresh nodes carry this taint until the EBS CSI node driver (v1.60+) registers and
+      # removes it, so a scale-out replica can't land on a node before its CSI drivers exist
+      # (it sat ~1 min in FailedMount "driver ebs.csi.aws.com not found", then failed its
+      # startup probe). NoExecute keeps DaemonSets (which tolerate everything) scheduling
+      # while holding back workloads.
+      startupTaints:
+        - key: ebs.csi.aws.com/agent-not-ready
+          effect: NoExecute
+  limits:
+    cpu: {{ $cfg.cpuLimit | quote }}
+    memory: {{ $cfg.memoryLimit }}
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 60s
+{{- end }}
+{{- with .Values.sharedCompute }}
+---
+# Shared compute: bin-packed small GizmoSQL clusters (pico / nano / micro, 0.25–1 vCPU)
+# share these nodes instead of each getting its own instance. Runs as an existing tenant
+# (its EC2NodeClass, tenant label and taint) plus `gizmodata.com/compute=shared`: the shared
+# sizes select and tolerate it, the dedicated sizes never tolerate it, so the two never mix
+# on a node. On-demand only, and consolidation only removes EMPTY nodes, because repacking
+# would restart running clusters.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: gizmosql-shared-compute
+spec:
+  template:
+    metadata:
+      labels:
+        gizmodata.com/workload: gizmosql
+        gizmodata.com/tenant: {{ .tenant }}
+        gizmodata.com/compute: shared
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: gizmosql-{{ .tenant }}
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values:
+            - arm64
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values:
+            - on-demand
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+            {{- range .instanceTypes }}
+            - {{ . }}
+            {{- end }}
+      taints:
+        - key: gizmodata.com/tenant
+          value: {{ .tenant }}
+          effect: NoSchedule
+        - key: gizmodata.com/compute
+          value: shared
+          effect: NoSchedule
+      startupTaints:
+        - key: ebs.csi.aws.com/agent-not-ready
+          effect: NoExecute
+  limits:
+    cpu: {{ .cpuLimit | quote }}
+    memory: {{ .memoryLimit }}
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 300s
+{{- end }}
