@@ -19,11 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - An inline policy on the Karpenter controller role letting it use the tenant keys for the
   nodes' volumes (`kms:CreateGrant` for AWS resources, encrypt / decrypt / data keys); without
-  it every launch with an encrypted volume fails.
+  it every launch with an encrypted volume fails. The node classes are applied only after the
+  policy (plus 30 s for IAM to propagate), so no launch ever sees the key without the permission.
 
 ### Changed
 - **Breaking:** new required input `karpenter_controller_role_name`; the module now also needs
-  the `aws` provider. `ami_alias` must be a Bottlerocket alias.
+  the `aws` and `time` providers. `ami_alias` must be a Bottlerocket alias.
 - Existing nodes are marked drifted and replaced by Karpenter as its disruption rules allow;
   nodes running pods annotated `karpenter.sh/do-not-disrupt` keep their old volumes until
   those pods move.

@@ -33,6 +33,17 @@ resource "helm_release" "this" {
       }
     })
   ]
+
+  # The node classes ask for the tenant keys; until the controller may use them, every launch fails.
+  depends_on = [time_sleep.karpenter_tenant_kms_propagation]
+}
+
+# IAM changes take a few seconds to reach every region endpoint.
+resource "time_sleep" "karpenter_tenant_kms_propagation" {
+  create_duration = "30s"
+  triggers = {
+    policy = aws_iam_role_policy.karpenter_tenant_kms.policy
+  }
 }
 
 # Karpenter launches the nodes (EC2 CreateFleet) with its controller role, so that role must be
